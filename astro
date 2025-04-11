@@ -1,7 +1,6 @@
 function astroquery -d "Interact with astroquery from fish shell"
     if test (count $argv) -eq 0
         echo "Available astroquery commands:"
-        echo "  astroquery list        # List all available astroquery services"
         echo "  astroquery simbad      # Query SIMBAD database"
         echo "  astroquery vizier      # Query VizieR catalogs"
         echo "  astroquery gaia        # Query Gaia database"
@@ -11,8 +10,6 @@ function astroquery -d "Interact with astroquery from fish shell"
         return 0
     end
     switch $argv[1]
-        case "list"
-            python -c "from astroquery import __all__; print('\n'.join(__all__))"
         case "simbad"
             astroquery-simbad $argv[2..-1]
         case "vizier"
@@ -417,7 +414,6 @@ function __astroquery_completing_subcommand
     return 1
 end
 
-complete -c astroquery -f -n "__astroquery_needs_command" -a "list" -d "List all available astroquery services"
 complete -c astroquery -f -n "__astroquery_needs_command" -a "simbad" -d "Query SIMBAD database"
 complete -c astroquery -f -n "__astroquery_needs_command" -a "vizier" -d "Query VizieR catalogs"
 complete -c astroquery -f -n "__astroquery_needs_command" -a "gaia" -d "Query Gaia database"
