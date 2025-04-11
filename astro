@@ -1,27 +1,35 @@
-
 function astroquery -d "Interact with astroquery from fish shell"
     if test (count $argv) -eq 0
         echo "Available astroquery commands:"
-        echo "  astroquery list       # List all available astroquery services"
-        echo "  astroquery simbad     # Query SIMBAD database"
-        echo "  astroquery vizier     # Query VizieR catalogs"
-        echo "  astroquery gaia       # Query Gaia database"
-        echo "  astroquery skyview    # Get images from SkyView"
-        echo "  astroquery ned        # Query NED database"
+        echo "  astroquery list        # List all available astroquery services"
+        echo "  astroquery simbad      # Query SIMBAD database"
+        echo "  astroquery vizier      # Query VizieR catalogs"
+        echo "  astroquery gaia        # Query Gaia database"
+        echo "  astroquery skyview     # Get images from SkyView"
+        echo "  astroquery ned         # Query NED database"
         echo "  astroquery jplhorizons # Query JPL Horizons for solar system objects"
         return 0
     end
-
     switch $argv[1]
         case "list"
             python -c "from astroquery import __all__; print('\n'.join(__all__))"
-            
+        case "simbad"
+            astroquery-simbad $argv[2..-1]
+        case "vizier"
+            astroquery-vizier $argv[2..-1]
+        case "gaia"
+            astroquery-gaia $argv[2..-1]
+        case "skyview"
+            astroquery-skyview $argv[2..-1]
+        case "ned"
+            astroquery-ned $argv[2..-1]
+        case "jplhorizons"
+            astroquery-jplhorizons $argv[2..-1]
         case "*"
             echo "Unknown astroquery command: $argv[1]"
             echo "Run 'astroquery' without arguments to see available commands"
     end
 end
-
 function astroquery-simbad -d "Query SIMBAD astronomical database"
     if test (count $argv) -eq 0
         echo "Usage: astroquery-simbad [object_name]"
@@ -32,7 +40,6 @@ function astroquery-simbad -d "Query SIMBAD astronomical database"
     python -c "
 from astroquery.simbad import Simbad
 import sys
-
 try:
     result = Simbad.query_object('$argv[1]')
     if result is None:
@@ -43,7 +50,6 @@ except Exception as e:
     print(f'Error querying SIMBAD: {e}')
 "
 end
-
 function astroquery-vizier -d "Query VizieR astronomical catalogs"
     if test (count $argv) -lt 2
         echo "Usage: astroquery-vizier [catalog_id] [object_name] (radius_arcmin)"
@@ -60,7 +66,6 @@ function astroquery-vizier -d "Query VizieR astronomical catalogs"
 from astroquery.vizier import Vizier
 import astropy.units as u
 import sys
-
 try:
     v = Vizier(columns=['*', '+_r'])
     result = v.query_object('$argv[2]', catalog='$argv[1]', radius=$radius * u.arcmin)
@@ -74,7 +79,6 @@ except Exception as e:
     print(f'Error querying VizieR: {e}')
 "
 end
-
 function astroquery-gaia -d "Query Gaia database"
     if test (count $argv) -lt 1
         echo "Usage: astroquery-gaia [object_name] (radius_arcsec)"
@@ -93,7 +97,6 @@ from astroquery.simbad import Simbad
 import astropy.units as u
 import astropy.coordinates as coord
 import sys
-
 try:
     result = Simbad.query_object('$argv[1]')
     if result is None:
@@ -119,7 +122,6 @@ except Exception as e:
     print(f'Error querying Gaia: {e}')
 "
 end
-
 function astroquery-skyview -d "Get images from SkyView"
     if test (count $argv) -lt 1
         echo "Usage: astroquery-skyview [object_name] (survey) (output_file)"
@@ -164,8 +166,6 @@ except Exception as e:
     print(f'Error getting image from SkyView: {e}')
 "
 end
-
-
 function astroquery-ned -d "Query NASA/IPAC Extragalactic Database"
     if test (count $argv) -eq 0
         echo "Usage: astroquery-ned [object_name]"
@@ -176,40 +176,6 @@ function astroquery-ned -d "Query NASA/IPAC Extragalactic Database"
     python -c "
 from astroquery.ipac.ned import Ned
 import sys
-try:
-    object_name = '$argv[1]'
-    print(f'Querying NED for {object_name}...')
-    
-    result = Ned.query_object(object_name)
-    if result is None or len(result) == 0:
-        print(f'No results found for \"{object_name}\" in NED')
-    else:
-        print(result)
-        
-    print('\\nBasic data:')
-    try:
-        objdata = Ned.get_object_info(object_name)
-        print(objdata)
-    except Exception as e:
-        print(f'Could not retrieve basic data: {e}')
-        
-except Exception as e:
-    print(f'Error querying NED: {e}')
-"
-end
-
-# Fixed NED database query function
-function astroquery-ned -d "Query NASA/IPAC Extragalactic Database"
-    if test (count $argv) -eq 0
-        echo "Usage: astroquery-ned [object_name]"
-        echo "Example: astroquery-ned 'NGC 1275'"
-        return 1
-    end
-    
-    python -c "
-from astroquery.ipac.ned import Ned  # Updated import path
-import sys
-
 try:
     object_name = '$argv[1]'
     result = Ned.query_object(object_name)
@@ -230,7 +196,6 @@ except Exception as e:
     print(f'Error querying NED: {e}')
 "
 end
-
 function astroquery-jplhorizons -d "Query JPL Horizons for solar system objects"
     if test (count $argv) -lt 1
         echo "Usage: astroquery-jplhorizons [object_id] (start_time) (stop_time) (step) (--physical)"
@@ -273,7 +238,6 @@ import sys
 from tabulate import tabulate
 import numpy as np
 import pandas as pd
-
 try:
     object_id = '$object_id'
     start_time = '$start_time'
@@ -327,7 +291,6 @@ except Exception as e:
     print(f'For comets use e.g. \"C/2020 F3\" and for asteroids use e.g. \"1 Ceres\" or \"(99942) Apophis\"')
 "
 end
-
 function __astroquery_jplhorizons_physical -d "Query JPL Horizons for physical parameters of solar system objects"
     if test (count $argv) -lt 1
         echo "Usage: astroquery-jplhorizons [object_id] --physical"
@@ -343,7 +306,6 @@ from astroquery.jplhorizons import Horizons
 import sys
 from tabulate import tabulate
 import re
-
 try:
     object_id = '$object_id'
     
@@ -434,82 +396,127 @@ except Exception as e:
 "
 end
 
-function astroquery -d "Interact with astroquery from fish shell"
-    if test (count $argv) -eq 0
-        echo "Available astroquery commands:"
-        echo "  astroquery list        # List all available astroquery services"
-        echo "  astroquery simbad      # Query SIMBAD database"
-        echo "  astroquery vizier      # Query VizieR catalogs"
-        echo "  astroquery gaia        # Query Gaia database"
-        echo "  astroquery skyview     # Get images from SkyView"
-        echo "  astroquery ned         # Query NED database"
-        echo "  astroquery jplhorizons # Query JPL Horizons for solar system objects"
+
+complete -c astroquery -e
+
+function __astroquery_needs_command
+    set -l cmd (commandline -opc)
+    if test (count $cmd) -eq 1; and test "$cmd[1]" = "astroquery"
         return 0
     end
-
-    switch $argv[1]
-        case "list"
-            python -c "from astroquery import __all__; print('\n'.join(__all__))"
-        case "simbad"
-            astroquery-simbad $argv[2..-1]
-        case "vizier"
-            astroquery-vizier $argv[2..-1]
-        case "gaia"
-            astroquery-gaia $argv[2..-1]
-        case "skyview"
-            astroquery-skyview $argv[2..-1]
-        case "ned"
-            astroquery-ned $argv[2..-1]
-        case "jplhorizons"
-            astroquery-jplhorizons $argv[2..-1]
-        case "*"
-            echo "Unknown astroquery command: $argv[1]"
-            echo "Run 'astroquery' without arguments to see available commands"
-    end
+    return 1
 end
 
+function __astroquery_completing_subcommand
+    set -l cmd (commandline -opc)
+    if test (count $cmd) -ge 2; and test "$cmd[1]" = "astroquery"; and test "$cmd[2]" = "$argv[1]"
+        if test (count $cmd) -eq 2; or test (count $cmd) -eq 3 -a (commandline -ct) != ""
+            return 0
+        end
+    end
+    return 1
+end
 
-complete -c astroquery -f -a "list" -d "List all available astroquery services"
-complete -c astroquery -f -a "simbad" -d "Query SIMBAD database"
-complete -c astroquery -f -a "vizier" -d "Query VizieR catalogs"
-complete -c astroquery -f -a "gaia" -d "Query Gaia database"
-complete -c astroquery -f -a "skyview" -d "Get images from SkyView"
-complete -c astroquery -f -a "ned" -d "Query NED database" 
-complete -c astroquery -f -a "jplhorizons" -d "Query JPL Horizons for solar system objects"
+complete -c astroquery -f -n "__astroquery_needs_command" -a "list" -d "List all available astroquery services"
+complete -c astroquery -f -n "__astroquery_needs_command" -a "simbad" -d "Query SIMBAD database"
+complete -c astroquery -f -n "__astroquery_needs_command" -a "vizier" -d "Query VizieR catalogs"
+complete -c astroquery -f -n "__astroquery_needs_command" -a "gaia" -d "Query Gaia database"
+complete -c astroquery -f -n "__astroquery_needs_command" -a "skyview" -d "Get images from SkyView"
+complete -c astroquery -f -n "__astroquery_needs_command" -a "ned" -d "Query NED database"
+complete -c astroquery -f -n "__astroquery_needs_command" -a "jplhorizons" -d "Query JPL Horizons for solar system objects"
 
-complete -c astroquery -f -n "__fish_seen_subcommand_from simbad" -a "M31" -d "Andromeda Galaxy"
-complete -c astroquery -f -n "__fish_seen_subcommand_from simbad" -a "M42" -d "Orion Nebula"
-complete -c astroquery -f -n "__fish_seen_subcommand_from simbad" -a "Sirius" -d "Brightest star in night sky"
+complete -c astroquery -f -n "__astroquery_completing_subcommand simbad" -a "M31" -d "Andromeda Galaxy"
+complete -c astroquery -f -n "__astroquery_completing_subcommand simbad" -a "M42" -d "Orion Nebula"
+complete -c astroquery -f -n "__astroquery_completing_subcommand simbad" -a "Sirius" -d "Brightest star in the night sky"
+complete -c astroquery -f -n "__astroquery_completing_subcommand simbad" -a "Betelgeuse" -d "Red supergiant in Orion"
+complete -c astroquery -f -n "__astroquery_completing_subcommand simbad" -a "Vega" -d "Bright star in Lyra"
+complete -c astroquery -f -n "__astroquery_completing_subcommand simbad" -a "Crab Nebula" -d "Supernova remnant in Taurus"
+complete -c astroquery -f -n "__astroquery_completing_subcommand simbad" -a "NGC 1275" -d "Perseus A galaxy"
 
-complete -c astroquery -f -n "__fish_seen_subcommand_from vizier" -a "II/246" -d "2MASS All-Sky Catalog"
-complete -c astroquery -f -n "__fish_seen_subcommand_from vizier" -a "I/350" -d "Gaia DR3"
-complete -c astroquery -f -n "__fish_seen_subcommand_from vizier" -a "I/239" -d "Hipparcos Catalog"
+complete -c astroquery -f -n "__astroquery_completing_subcommand vizier" -a "II/246" -d "2MASS All-Sky Catalog"
+complete -c astroquery -f -n "__astroquery_completing_subcommand vizier" -a "I/350" -d "Gaia EDR3"
+complete -c astroquery -f -n "__astroquery_completing_subcommand vizier" -a "I/239" -d "Hipparcos Catalog"
+complete -c astroquery -f -n "__astroquery_completing_subcommand vizier" -a "V/147" -d "SDSS DR12"
+complete -c astroquery -f -n "__astroquery_completing_subcommand vizier" -a "J/ApJS/199/8" -d "Kepler planet candidates"
 
-complete -c astroquery -f -n "__fish_seen_subcommand_from skyview" -a "DSS" -d "Digitized Sky Survey"
-complete -c astroquery -f -n "__fish_seen_subcommand_from skyview" -a "SDSS" -d "Sloan Digital Sky Survey"
-complete -c astroquery -f -n "__fish_seen_subcommand_from skyview" -a "2MASS" -d "2 Micron All Sky Survey"
-complete -c astroquery -f -n "__fish_seen_subcommand_from skyview" -a "WISE" -d "Wide-field Infrared Survey Explorer"
+complete -c astroquery -f -n "__astroquery_completing_subcommand vizier" -a "M31" -d "Andromeda Galaxy"
+complete -c astroquery -f -n "__astroquery_completing_subcommand vizier" -a "M42" -d "Orion Nebula"
+complete -c astroquery -f -n "__astroquery_completing_subcommand vizier" -a "Sirius" -d "Brightest star in the night sky"
+complete -c astroquery -f -n "__astroquery_completing_subcommand vizier" -a "Pleiades" -d "Open star cluster"
+complete -c astroquery -f -n "__astroquery_completing_subcommand vizier" -a "Crab Nebula" -d "Supernova remnant"
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand vizier" -a "5" -d "5 arcmin (default)"
+complete -c astroquery -f -n "__astroquery_completing_subcommand vizier" -a "10" -d "10 arcmin"
+complete -c astroquery -f -n "__astroquery_completing_subcommand vizier" -a "30" -d "30 arcmin"
+complete -c astroquery -f -n "__astroquery_completing_subcommand vizier" -a "60" -d "1 degree (60 arcmin)"
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "M31" -d "Andromeda Galaxy"
+complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "M42" -d "Orion Nebula"
+complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "Sirius" -d "Brightest star in the night sky"
+complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "Proxima Centauri" -d "Nearest star to the Sun"
+complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "Pleiades" -d "Open star cluster"
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "10" -d "10 arcsec (default)"
+complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "30" -d "30 arcsec"
+complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "60" -d "1 arcmin (60 arcsec)"
+complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "300" -d "5 arcmin (300 arcsec)"
+complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "3600" -d "1 degree (3600 arcsec)"
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "M31" -d "Andromeda Galaxy"
+complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "M42" -d "Orion Nebula"
+complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "M51" -d "Whirlpool Galaxy"
+complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "Crab Nebula" -d "Supernova remnant"
+complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "3C 273" -d "Bright quasar"
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "DSS" -d "Digitized Sky Survey (default)"
+complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "DSS2" -d "Digitized Sky Survey 2"
+complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "2MASS" -d "2 Micron All Sky Survey"
+complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "WISE" -d "Wide-field Infrared Survey Explorer"
+complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "SDSS" -d "Sloan Digital Sky Survey"
+complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "Fermi" -d "Fermi gamma-ray space telescope"
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "./" -d "Current directory"
+complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "./image.fits" -d "FITS file"
+complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -d "File location" -r
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand ned" -a "M31" -d "Andromeda Galaxy"
+complete -c astroquery -f -n "__astroquery_completing_subcommand ned" -a "M87" -d "Virgo A galaxy"
+complete -c astroquery -f -n "__astroquery_completing_subcommand ned" -a "NGC 1277" -d "Perseus galaxy"
+complete -c astroquery -f -n "__astroquery_completing_subcommand ned" -a "3C 273" -d "Famous quasar"
+complete -c astroquery -f -n "__astroquery_completing_subcommand ned" -a "Cygnus A" -d "Radio galaxy"
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "--physical" -d "Get physical parameters instead of ephemeris"
 
 
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "--help" -d "Show help information"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "--physical" -d "Get physical parameters instead of ephemeris"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "1" -d "Mercury"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "2" -d "Venus"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "301" -d "Moon"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "399" -d "Earth"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "499" -d "Mars"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "599" -d "Jupiter"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "699" -d "Saturn"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "799" -d "Uranus"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "899" -d "Neptune"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "999" -d "Pluto"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "Ceres" -d "Dwarf planet/asteroid"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "Pallas" -d "Large asteroid"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "Vesta" -d "Large asteroid"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "C/2020 F3" -d "Comet NEOWISE"
 
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "10" -d "Sun"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "1" -d "Mercury"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "2" -d "Venus"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "301" -d "Moon"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "399" -d "Earth"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "499" -d "Mars"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "599" -d "Jupiter"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "699" -d "Saturn"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "799" -d "Uranus"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "899" -d "Neptune"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "999" -d "Pluto"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "Ceres" -d "Dwarf planet"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "C/2020 F3" -d "Comet NEOWISE"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "Bennu" -d "Asteroid (101955) Bennu"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "Psyche" -d "Asteroid (16) Psyche"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "Europa" -d "Jupiter's moon"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "Titan" -d "Saturn's largest moon"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "Ganymede" -d "Jupiter's largest moon"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "Enceladus" -d "Saturn's icy moon"
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 4; and not __fish_seen_argument --physical" -a (date +%Y-%m-%d) -d "Today"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 4; and not __fish_seen_argument --physical" -a "2023-01-01" -d "New Year 2023"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 4; and not __fish_seen_argument --physical" -a "2023-07-01" -d "Mid-year 2023"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 4; and not __fish_seen_argument --physical" -a "2024-01-01" -d "New Year 2024"
+
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 5; and not __fish_seen_argument --physical" -a (date -d "+10 days" +%Y-%m-%d) -d "10 days from today"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 5; and not __fish_seen_argument --physical" -a (date -d "+30 days" +%Y-%m-%d) -d "30 days from today"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 5; and not __fish_seen_argument --physical" -a "2023-12-31" -d "End of 2023"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 5; and not __fish_seen_argument --physical" -a "2024-12-31" -d "End of 2024"
+
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 6; and not __fish_seen_argument --physical" -a "1d" -d "1 day (default)"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 6; and not __fish_seen_argument --physical" -a "1h" -d "1 hour"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 6; and not __fish_seen_argument --physical" -a "10m" -d "10 minutes"
+complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 6; and not __fish_seen_argument --physical" -a "7d" -d "1 week"
