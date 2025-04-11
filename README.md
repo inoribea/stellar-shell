@@ -18,6 +18,7 @@ Available astroquery commands:
   astroquery gaia       # Query Gaia database
   astroquery skyview    # Get images from SkyView
   astroquery ned        # Query NED database
+  astroquery jplhorizons # Query JPL Horizons for solar system objects"
 ```
 
 ## fits-viewer
