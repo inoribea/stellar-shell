@@ -4,6 +4,8 @@ The scripts in this project are function calls for the fish shell and rely on th
 
 The scripts rely on astroquery. Please install it yourself to ensure normal calls.
 
+Because the support for the JPL Horizons database is added, at least the dependencies of tabulate and pandas are required in addition to the ontology.
+
 ## astroquery
 
 ``` fish
