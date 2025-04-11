@@ -233,11 +233,21 @@ end
 
 function astroquery-jplhorizons -d "Query JPL Horizons for solar system objects"
     if test (count $argv) -lt 1
-        echo "Usage: astroquery-jplhorizons [object_id] (start_time) (stop_time) (step)"
+        echo "Usage: astroquery-jplhorizons [object_id] (start_time) (stop_time) (step) (--physical)"
         echo "Example: astroquery-jplhorizons '301' '2023-01-01' '2023-01-10' '1d'"
+        echo "Example: astroquery-jplhorizons '301' --physical"
         echo "Object IDs: 1=Mercury, 301=Moon, 399=Earth, 499=Mars, 599=Jupiter, etc."
         echo "            Or use names like 'Mars', 'Ceres', 'C/2020 F3' (comet)"
+        echo "Options:"
+        echo "  --physical    Retrieve physical parameters instead of ephemeris"
         return 1
+    end
+    
+    # Check if we're requesting physical parameters
+    if contains -- "--physical" $argv
+        set -e argv[(contains -i -- "--physical" $argv)]
+        __astroquery_jplhorizons_physical $argv
+        return
     end
     
     set object_id $argv[1]
@@ -318,6 +328,112 @@ except Exception as e:
 "
 end
 
+function __astroquery_jplhorizons_physical -d "Query JPL Horizons for physical parameters of solar system objects"
+    if test (count $argv) -lt 1
+        echo "Usage: astroquery-jplhorizons [object_id] --physical"
+        echo "Example: astroquery-jplhorizons 'Jupiter' --physical"
+        echo "Object IDs: 1=Mercury, 301=Moon, 399=Earth, 499=Mars, 599=Jupiter, etc."
+        return 1
+    end
+    
+    set object_id $argv[1]
+    
+    python -c "
+from astroquery.jplhorizons import Horizons
+import sys
+from tabulate import tabulate
+import re
+
+try:
+    object_id = '$object_id'
+    
+    print(f'Querying JPL Horizons for physical parameters of: {object_id}')
+    
+    # Create Horizons object with the 'id' parameter
+    obj = Horizons(id=object_id, location='@sun', epochs=2459000.5)
+    
+    # Get ephemeris data with quantities='G' for physical data
+    data = obj.ephemerides(quantities='G')
+    
+    # Extract the target name
+    target_name = data['targetname'][0] if 'targetname' in data.columns else object_id
+    print(f'\\nPhysical parameters for {target_name}:')
+    
+    # Display basic information from ephemeris
+    basic_params = ['H', 'G', 'M1', 'M2', 'k1', 'k2', 'phase_coeff']
+    found_params = False
+    
+    for param in basic_params:
+        if param in data.columns:
+            print(f'{param}: {data[param][0]}')
+            found_params = True
+    
+    # Get physical parameters from elements API
+    try:
+        # Query elements API which contains physical parameters
+        elem = obj.elements()
+        
+        if elem is not None:
+            print('\\nOrbital elements:')
+            
+            # Important orbital elements
+            orbital_params = ['targetname', 'e', 'incl', 'a', 'Q', 'P']
+            for param in orbital_params:
+                if param in elem.columns:
+                    print(f'{param}: {elem[param][0]}')
+    except Exception as e:
+        print(f'Could not retrieve orbital elements: {e}')
+    
+    # Try to get physical data from the raw response (for larger bodies)
+    try:
+        # Get raw response for additional physical data
+        raw_response = obj.ephemerides_async(quantities='G')
+        raw_text = raw_response.text
+        
+        # Look for physical data section
+        if '$$SOE' in raw_text and '$$EOE' in raw_text:
+            # Extract the header section
+            header = raw_text.split('$$SOE')[0]
+            
+            # Look for physical parameters
+            print('\\nAdditional physical parameters:')
+            
+            # Define patterns for common physical parameters
+            patterns = {
+                'Mass': r'Mass.*?=\\s*([\\d.]+\\s*[\\w\\^\\d.]+)',
+                'Radius': r'Radius.*?=\\s*([\\d.]+\\s*[\\w\\^\\d.]+)',
+                'Density': r'Density.*?=\\s*([\\d.]+\\s*[\\w\\^\\d.]+)',
+                'Geometric Albedo': r'Geometric albedo.*?=\\s*([\\d.]+)',
+                'GM': r'GM\\s*=\\s*([\\d.]+\\s*[\\w\\^\\d.]+)',
+                'Rotation period': r'rot\\. period.*?=\\s*([\\d.]+\\s*[\\w\\^\\d.]+)',
+                'Equatorial radius': r'Equat.*?radius.*?=\\s*([\\d.]+\\s*[\\w\\^\\d.]+)',
+                'Polar radius': r'Polar.*?radius.*?=\\s*([\\d.]+\\s*[\\w\\^\\d.]+)'
+            }
+            
+            found_physical = False
+            for param, pattern in patterns.items():
+                match = re.search(pattern, header, re.IGNORECASE)
+                if match:
+                    print(f'{param}: {match.group(1)}')
+                    found_physical = True
+            
+            if not found_physical:
+                print('No detailed physical parameters found in JPL Horizons data')
+        
+    except Exception as e:
+        print(f'Could not parse raw response for physical parameters: {e}')
+    
+    if not found_params:
+        print('No physical parameters found in JPL Horizons data')
+        print('Some objects may not have physical data available in the JPL database')
+    
+except Exception as e:
+    print(f'Error querying JPL Horizons: {e}')
+    print(f'Tip: If the object ID is a comet or asteroid designation, make sure to use the correct format.')
+    print(f'For comets use e.g. \"C/2020 F3\" and for asteroids use e.g. \"1 Ceres\" or \"(99942) Apophis\"')
+"
+end
+
 function astroquery -d "Interact with astroquery from fish shell"
     if test (count $argv) -eq 0
         echo "Available astroquery commands:"
@@ -352,70 +468,32 @@ function astroquery -d "Interact with astroquery from fish shell"
     end
 end
 
-complete -c astroquery -f -n "__fish_use_subcommand" -a "list" -d "List all available astroquery services"
-complete -c astroquery -f -n "__fish_use_subcommand" -a "simbad" -d "Query SIMBAD database"
-complete -c astroquery -f -n "__fish_use_subcommand" -a "vizier" -d "Query VizieR catalogs"
-complete -c astroquery -f -n "__fish_use_subcommand" -a "gaia" -d "Query Gaia database"
-complete -c astroquery -f -n "__fish_use_subcommand" -a "skyview" -d "Get images from SkyView"
-complete -c astroquery -f -n "__fish_use_subcommand" -a "ned" -d "Query NED database"
-complete -c astroquery -f -n "__fish_use_subcommand" -a "jplhorizons" -d "Query JPL Horizons for solar system objects"
 
-# SIMBAD subcommand completion
-complete -c astroquery -f -n "__fish_seen_subcommand_from simbad" -a "--help" -d "Show help information"
+complete -c astroquery -f -a "list" -d "List all available astroquery services"
+complete -c astroquery -f -a "simbad" -d "Query SIMBAD database"
+complete -c astroquery -f -a "vizier" -d "Query VizieR catalogs"
+complete -c astroquery -f -a "gaia" -d "Query Gaia database"
+complete -c astroquery -f -a "skyview" -d "Get images from SkyView"
+complete -c astroquery -f -a "ned" -d "Query NED database" 
+complete -c astroquery -f -a "jplhorizons" -d "Query JPL Horizons for solar system objects"
 
-# Completion suggestions for common astronomical targets
 complete -c astroquery -f -n "__fish_seen_subcommand_from simbad" -a "M31" -d "Andromeda Galaxy"
 complete -c astroquery -f -n "__fish_seen_subcommand_from simbad" -a "M42" -d "Orion Nebula"
-complete -c astroquery -f -n "__fish_seen_subcommand_from simbad" -a "M87" -d "Virgo A Galaxy"
 complete -c astroquery -f -n "__fish_seen_subcommand_from simbad" -a "Sirius" -d "Brightest star in night sky"
-complete -c astroquery -f -n "__fish_seen_subcommand_from simbad" -a "Betelgeuse" -d "Red supergiant in Orion"
 
-# VizieR subcommand completion
-complete -c astroquery -f -n "__fish_seen_subcommand_from vCompletion suggestions for common catalogsizier" -a "--help" -d "Show help information"
-# Completion suggestions for common catalogs
 complete -c astroquery -f -n "__fish_seen_subcommand_from vizier" -a "II/246" -d "2MASS All-Sky Catalog"
 complete -c astroquery -f -n "__fish_seen_subcommand_from vizier" -a "I/350" -d "Gaia DR3"
-complete -c astroquery -f -n "__fish_seen_subcommand_from vizier" -a "I/345" -d "Gaia DR2"
-complete -c astroquery -f -n "__fish_seen_subcommand_from vizier" -a "V/147" -d "SDSS DR12 Catalog"
-complete -c astroquery -f -n "__fish_seen_subcommand_from vizier" -a "J/ApJS/199/26" -d "Kepler KOI Catalog"
+complete -c astroquery -f -n "__fish_seen_subcommand_from vizier" -a "I/239" -d "Hipparcos Catalog"
 
-# Gaia subcommand completion
-complete -c astroquery -f -n "__fish_seen_subcommand_from gaia" -a "--help" -d "Show help information"
-# Completion suggestions for common astronomical targets
-complete -c astroquery -f -n "__fish_seen_subcommand_from gaia" -a "Sirius" -d "Brightest star in night sky"
-complete -c astroquery -f -n "__fish_seen_subcommand_from gaia" -a "Proxima Centauri" -d "Nearest star to Solar System"
-complete -c astroquery -f -n "__fish_seen_subcommand_from gaia" -a "Barnard Star" -d "High proper motion star"
-complete -c astroquery -f -n "__fish_seen_subcommand_from gaia" -a "10" -d "Default radius (arcsec)"
-complete -c astroquery -f -n "__fish_seen_subcommand_from gaia" -a "30" -d "Larger radius (arcsec)"
-complete -c astroquery -f -n "__fish_seen_subcommand_from gaia" -a "60" -d "Extended radius (arcsec)"
+complete -c astroquery -f -n "__fish_seen_subcommand_from skyview" -a "DSS" -d "Digitized Sky Survey"
+complete -c astroquery -f -n "__fish_seen_subcommand_from skyview" -a "SDSS" -d "Sloan Digital Sky Survey"
+complete -c astroquery -f -n "__fish_seen_subcommand_from skyview" -a "2MASS" -d "2 Micron All Sky Survey"
+complete -c astroquery -f -n "__fish_seen_subcommand_from skyview" -a "WISE" -d "Wide-field Infrared Survey Explorer"
 
-# SkyView subcommand completion
-complete -c astroquery -f -n "__fish_seen_subcommand_from skyview" -a "--help" -d "Show help information"
-# Completion suggestions for common astronomical targets
-complete -c astroquery -f -n "__fish_seen_subcommand_from skyview" -a "M51" -d "Whirlpool Galaxy"
-complete -c astroquery -f -n "__fish_seen_subcommand_from skyview" -a "M31" -d "Andromeda Galaxy"
-complete -c astroquery -f -n "__fish_seen_subcommand_from skyview" -a "M42" -d "Orion Nebula"
-# Completion suggestions for common surveys
-complete -c astroquery -f -n "__fish_seen_subcommand_from skyview; and __fish_is_nth_token 2" -a "DSS" -d "Digitized Sky Survey"
-complete -c astroquery -f -n "__fish_seen_subcommand_from skyview; and __fish_is_nth_token 2" -a "DSS2" -d "Digitized Sky Survey 2"
-complete -c astroquery -f -n "__fish_seen_subcommand_from skyview; and __fish_is_nth_token 2" -a "2MASS" -d "2 Micron All Sky Survey"
-complete -c astroquery -f -n "__fish_seen_subcommand_from skyview; and __fish_is_nth_token 2" -a "WISE" -d "Wide-field Infrared Survey Explorer"
-complete -c astroquery -f -n "__fish_seen_subcommand_from skyview; and __fish_is_nth_token 2" -a "SDSS" -d "Sloan Digital Sky Survey"
-complete -c astroquery -f -n "__fish_seen_subcommand_from skyview; and __fish_is_nth_token 2" -a "GALEX" -d "Galaxy Evolution Explorer"
-complete -c astroquery -f -n "__fish_seen_subcommand_from skyview; and __fish_is_nth_token 2" -a "Fermi" -d "Fermi Gamma-ray Space Telescope"
 
-# NED subcommand completion
-complete -c astroquery -f -n "__fish_seen_subcommand_from ned" -a "--help" -d "Show help information"
-# Completion suggestions for common extragalactic objects
-complete -c astroquery -f -n "__fish_seen_subcommand_from ned" -a "NGC 1275" -d "Perseus A"
-complete -c astroquery -f -n "__fish_seen_subcommand_from ned" -a "M87" -d "Virgo A Galaxy"
-complete -c astroquery -f -n "__fish_seen_subcommand_from ned" -a "NGC 5128" -d "Centaurus A"
-complete -c astroquery -f -n "__fish_seen_subcommand_from ned" -a "3C 273" -d "Bright quasar"
-complete -c astroquery -f -n "__fish_seen_subcommand_from ned" -a "Cygnus A" -d "Radio galaxy"
-
-# JPL Horizons subcommand completion
 complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "--help" -d "Show help information"
-# ompletion suggestions for Solar System objects
+complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "--physical" -d "Get physical parameters instead of ephemeris"
+
 complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "10" -d "Sun"
 complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "1" -d "Mercury"
 complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "2" -d "Venus"
@@ -429,9 +507,9 @@ complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "899" 
 complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "999" -d "Pluto"
 complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "Ceres" -d "Dwarf planet"
 complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "C/2020 F3" -d "Comet NEOWISE"
-
-# Completion suggestions for date parameters (for JPL Horizons)
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons; and __fish_is_nth_token 2" -a "2023-01-01" -d "Start date"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons; and __fish_is_nth_token 3" -a "2023-01-10" -d "End date"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons; and __fish_is_nth_token 4" -a "1d" -d "Daily step"
-complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons; and __fish_is_nth_token 4" -a "1h" -d "Hourly step"
+complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "Bennu" -d "Asteroid (101955) Bennu"
+complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "Psyche" -d "Asteroid (16) Psyche"
+complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "Europa" -d "Jupiter's moon"
+complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "Titan" -d "Saturn's largest moon"
+complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "Ganymede" -d "Jupiter's largest moon"
+complete -c astroquery -f -n "__fish_seen_subcommand_from jplhorizons" -a "Enceladus" -d "Saturn's icy moon"
