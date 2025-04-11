@@ -6,6 +6,11 @@ The scripts rely on astroquery. Please install it yourself to ensure normal call
 
 (astroquery, astropy, tabulate, numpy, pandas, matplotlib)
 
+## Todo
+ - [x] fish shell completion
+ - [ ] powershell completion
+ - [ ] zsh complation
+
 ## astroquery
 
 ``` fish
