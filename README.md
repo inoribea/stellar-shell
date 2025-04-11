@@ -4,7 +4,7 @@ The scripts in this project are function calls for the fish shell and rely on th
 
 The scripts rely on astroquery. Please install it yourself to ensure normal calls.
 
-Because the support for the JPL Horizons database is added, at least the dependencies of tabulate and pandas are required in addition to the ontology.
+(astroquery, astropy, tabulate, numpy, pandas, matplotlib)
 
 ## astroquery
 
@@ -12,13 +12,17 @@ Because the support for the JPL Horizons database is added, at least the depende
 astroquery
 
 Available astroquery commands:
-  astroquery list        # List all available astroquery services
-  astroquery simbad      # Query SIMBAD database
-  astroquery vizier      # Query VizieR catalogs
-  astroquery gaia        # Query Gaia database
-  astroquery skyview     # Get images from SkyView
-  astroquery ned         # Query NED database
-  astroquery jplhorizons # Query JPL Horizons for solar system objects"
+        echo "Available astroquery commands:"
+        echo "  astroquery simbad      # Query SIMBAD database"
+        echo "  astroquery vizier      # Query VizieR catalogs"
+        echo "  astroquery gaia        # Query Gaia database"
+        echo "  astroquery skyview     # Get images from SkyView"
+        echo "  astroquery ned         # Query NED database"
+        echo "  astroquery jplhorizons # Query JPL Horizons for solar system objects"
+        echo "  astroquery exoplanet   # Query NASA Exoplanet Archive"
+        echo "  astroquery mast        # Query MAST Archive (Hubble, TESS, JWST, etc.)"
+        echo "  astroquery alma        # Query ALMA Archive"
+        echo "  astroquery splatalogue # Query Splatalogue for spectral lines"
 ```
 
 ## fits-viewer
