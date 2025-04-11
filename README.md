@@ -12,12 +12,12 @@ Because the support for the JPL Horizons database is added, at least the depende
 astroquery
 
 Available astroquery commands:
-  astroquery list       # List all available astroquery services
-  astroquery simbad     # Query SIMBAD database
-  astroquery vizier     # Query VizieR catalogs
-  astroquery gaia       # Query Gaia database
-  astroquery skyview    # Get images from SkyView
-  astroquery ned        # Query NED database
+  astroquery list        # List all available astroquery services
+  astroquery simbad      # Query SIMBAD database
+  astroquery vizier      # Query VizieR catalogs
+  astroquery gaia        # Query Gaia database
+  astroquery skyview     # Get images from SkyView
+  astroquery ned         # Query NED database
   astroquery jplhorizons # Query JPL Horizons for solar system objects"
 ```
 
