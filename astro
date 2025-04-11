@@ -1,0 +1,232 @@
+
+function astroquery -d "Interact with astroquery from fish shell"
+    if test (count $argv) -eq 0
+        echo "Available astroquery commands:"
+        echo "  astroquery list       # List all available astroquery services"
+        echo "  astroquery simbad     # Query SIMBAD database"
+        echo "  astroquery vizier     # Query VizieR catalogs"
+        echo "  astroquery gaia       # Query Gaia database"
+        echo "  astroquery skyview    # Get images from SkyView"
+        echo "  astroquery ned        # Query NED database"
+        return 0
+    end
+
+    switch $argv[1]
+        case "list"
+            python -c "from astroquery import __all__; print('\n'.join(__all__))"
+            
+        case "*"
+            echo "Unknown astroquery command: $argv[1]"
+            echo "Run 'astroquery' without arguments to see available commands"
+    end
+end
+
+function astroquery-simbad -d "Query SIMBAD astronomical database"
+    if test (count $argv) -eq 0
+        echo "Usage: astroquery-simbad [object_name]"
+        echo "Example: astroquery-simbad 'M31'"
+        return 1
+    end
+    
+    python -c "
+from astroquery.simbad import Simbad
+import sys
+
+try:
+    result = Simbad.query_object('$argv[1]')
+    if result is None:
+        print(f'No results found for \"{argv[1]}\"')
+    else:
+        print(result)
+except Exception as e:
+    print(f'Error querying SIMBAD: {e}')
+"
+end
+
+function astroquery-vizier -d "Query VizieR astronomical catalogs"
+    if test (count $argv) -lt 2
+        echo "Usage: astroquery-vizier [catalog_id] [object_name] (radius_arcmin)"
+        echo "Example: astroquery-vizier 'II/246' 'M31' 10"
+        return 1
+    end
+    
+    set radius 5  
+    if test (count $argv) -ge 3
+        set radius $argv[3]
+    end
+    
+    python -c "
+from astroquery.vizier import Vizier
+import astropy.units as u
+import sys
+
+try:
+    v = Vizier(columns=['*', '+_r'])
+    result = v.query_object('$argv[2]', catalog='$argv[1]', radius=$radius * u.arcmin)
+    if not result:
+        print(f'No results found for \"{argv[2]}\" in catalog \"{argv[1]}\"')
+    else:
+        for table_name in result.keys():
+            print(f'\\nTable: {table_name}')
+            print(result[table_name])
+except Exception as e:
+    print(f'Error querying VizieR: {e}')
+"
+end
+
+function astroquery-gaia -d "Query Gaia database"
+    if test (count $argv) -lt 1
+        echo "Usage: astroquery-gaia [object_name] (radius_arcsec)"
+        echo "Example: astroquery-gaia 'Sirius' 30"
+        return 1
+    end
+    
+    set radius 10  
+    if test (count $argv) -ge 2
+        set radius $argv[2]
+    end
+    
+    python -c "
+from astroquery.gaia import Gaia
+from astroquery.simbad import Simbad
+import astropy.units as u
+import astropy.coordinates as coord
+import sys
+
+try:
+    result = Simbad.query_object('$argv[1]')
+    if result is None:
+        print(f'Object \"{argv[1]}\" not found in SIMBAD')
+        sys.exit(1)
+    
+    ra = result['RA'][0]
+    dec = result['DEC'][0]
+    
+    c = coord.SkyCoord(ra + ' ' + dec, unit=(u.hourangle, u.deg))
+    
+    r = $radius * u.arcsec
+    j = Gaia.cone_search_async(c, r)
+    result = j.get_results()
+    
+    if len(result) == 0:
+        print(f'No Gaia results found for \"{argv[1]}\" within {r}')
+    else:
+        print(f'Found {len(result)} sources in Gaia DR3:')
+        cols = ['source_id', 'ra', 'dec', 'parallax', 'pmra', 'pmdec', 'phot_g_mean_mag', 'bp_rp']
+        print(result[cols])
+except Exception as e:
+    print(f'Error querying Gaia: {e}')
+"
+end
+
+function astroquery-skyview -d "Get images from SkyView"
+    if test (count $argv) -lt 1
+        echo "Usage: astroquery-skyview [object_name] (survey) (output_file)"
+        echo "Example: astroquery-skyview 'M51' 'DSS' './m51_dss.fits'"
+        echo "Available surveys: DSS, DSS2, 2MASS, WISE, SDSS, etc."
+        return 1
+    end
+    
+    set survey "DSS"  
+    if test (count $argv) -ge 2
+        set survey $argv[2]
+    end
+    
+    set output_file "$argv[1]_$survey.fits"  
+    if test (count $argv) -ge 3
+        set output_file $argv[3]
+    end
+    
+    python -c "
+from astroquery.skyview import SkyView
+from astropy.io import fits
+import matplotlib.pyplot as plt
+import sys
+try:
+    object_name = '$argv[1]'
+    survey_name = '$survey'
+    output_file = '$output_file'
+    
+    print(f'Fetching {survey_name} image for {object_name}...')
+    images = SkyView.get_images(position=object_name, survey=[survey_name])
+    
+    if not images or len(images) == 0 or images[0] is None:
+        print(f'No images found for \"{object_name}\" in survey \"{survey_name}\"')
+        sys.exit(1)
+    
+    fits.writeto(output_file, images[0][0].data, images[0][0].header, overwrite=True)
+    print(f'Image saved to {output_file}')
+    
+    print(f'Image size: {images[0][0].data.shape}')
+    print(f'To display this image, you can use DS9 or a Python script with matplotlib')
+except Exception as e:
+    print(f'Error getting image from SkyView: {e}')
+"
+end
+
+
+function astroquery-ned -d "Query NASA/IPAC Extragalactic Database"
+    if test (count $argv) -eq 0
+        echo "Usage: astroquery-ned [object_name]"
+        echo "Example: astroquery-ned 'NGC 1275'"
+        return 1
+    end
+    
+    python -c "
+from astroquery.ipac.ned import Ned
+import sys
+try:
+    object_name = '$argv[1]'
+    print(f'Querying NED for {object_name}...')
+    
+    result = Ned.query_object(object_name)
+    if result is None or len(result) == 0:
+        print(f'No results found for \"{object_name}\" in NED')
+    else:
+        print(result)
+        
+    print('\\nBasic data:')
+    try:
+        objdata = Ned.get_object_info(object_name)
+        print(objdata)
+    except Exception as e:
+        print(f'Could not retrieve basic data: {e}')
+        
+except Exception as e:
+    print(f'Error querying NED: {e}')
+"
+end
+
+
+function astroquery -d "Interact with astroquery from fish shell"
+    if test (count $argv) -eq 0
+        echo "Available astroquery commands:"
+        echo "  astroquery list       # List all available astroquery services"
+        echo "  astroquery simbad     # Query SIMBAD database"
+        echo "  astroquery vizier     # Query VizieR catalogs"
+        echo "  astroquery gaia       # Query Gaia database"
+        echo "  astroquery skyview    # Get images from SkyView"
+        echo "  astroquery ned        # Query NED database"
+        return 0
+    end
+
+    switch $argv[1]
+        case "list"
+            python -c "from astroquery import __all__; print('\n'.join(__all__))"
+        case "simbad"
+            astroquery-simbad $argv[2..-1]
+        case "vizier"
+            astroquery-vizier $argv[2..-1]
+        case "gaia"
+            astroquery-gaia $argv[2..-1]
+        case "skyview"
+            astroquery-skyview $argv[2..-1]
+        case "ned"
+            astroquery-ned $argv[2..-1]
+        case "*"
+            echo "Unknown astroquery command: $argv[1]"
+            echo "Run 'astroquery' without arguments to see available commands"
+    end
+end
+
+

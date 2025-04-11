@@ -1,0 +1,89 @@
+function fits-view -d "Advanced FITS image viewer"
+    if test (count $argv) -eq 0
+        echo "Usage: fits-view [fits_file] [options]"
+        echo "Options:"
+        echo "  --cmap=COLORMAP   Set colormap (default: viridis)"
+        echo "  --log             Use logarithmic scaling"
+        echo "  --save=FILENAME   Save plot to file instead of displaying"
+        return 1
+    end
+    
+    set fits_file $argv[1]
+    set cmap "viridis"
+    set log_scale "False"
+    set save_file ""
+    
+    for arg in $argv[2..-1]
+        switch $arg
+            case --cmap=\*
+                set cmap (string replace --regex '^--cmap=' '' $arg)
+            case --log
+                set log_scale "True"
+            case --save=\*
+                set save_file (string replace --regex '^--save=' '' $arg)
+        end
+    end
+    
+    python -c "
+from astropy.io import fits
+import matplotlib.pyplot as plt
+import numpy as np
+import sys
+
+try:
+    fits_file = '$fits_file'
+    cmap = '$cmap'
+    log_scale = $log_scale
+    save_file = '$save_file'
+    
+    hdul = fits.open(fits_file)
+    data = hdul[0].data
+    header = hdul[0].header
+    
+    print(f'Image dimensions: {data.shape}')
+    print(f'Data type: {data.dtype}')
+    print(f'Min value: {np.min(data)}')
+    print(f'Max value: {np.max(data)}')
+    print(f'Mean value: {np.mean(data)}')
+    
+    for key in ['OBJECT', 'TELESCOP', 'INSTRUME', 'DATE-OBS', 'EXPTIME']:
+        if key in header:
+            print(f'{key}: {header[key]}')
+    
+    if log_scale and np.min(data) <= 0:
+        offset = abs(np.min(data)) + 1e-10 if np.min(data) <= 0 else 0
+        display_data = np.log10(data + offset)
+        print('Applied logarithmic scaling with offset')
+    elif log_scale:
+        display_data = np.log10(data)
+        print('Applied logarithmic scaling')
+    else:
+        display_data = data
+
+    plt.figure(figsize=(12, 10))
+    im = plt.imshow(display_data, cmap=cmap, origin='lower')
+    plt.colorbar(im, label='Flux' + (' (log scale)' if log_scale else ''))
+    
+    title = f'FITS Image: {fits_file}'
+    if 'OBJECT' in header:
+        title += f' - Object: {header[\"OBJECT\"]}'
+    plt.title(title)
+    
+    plt.grid(False)
+    plt.tight_layout()
+    
+    
+    if save_file:
+        plt.savefig(save_file, dpi=300, bbox_inches='tight')
+        print(f'Image saved to {save_file}')
+    else:
+        plt.show()
+    
+    hdul.close()
+    
+except Exception as e:
+    print(f'Error viewing FITS file: {e}')
+    sys.exit(1)
+"
+end
+
