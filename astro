@@ -7,6 +7,10 @@ function astroquery -d "Interact with astroquery from fish shell"
         echo "  astroquery skyview     # Get images from SkyView"
         echo "  astroquery ned         # Query NED database"
         echo "  astroquery jplhorizons # Query JPL Horizons for solar system objects"
+        echo "  astroquery exoplanet   # Query NASA Exoplanet Archive"
+        echo "  astroquery mast        # Query MAST Archive (Hubble, TESS, JWST, etc.)"
+        echo "  astroquery alma        # Query ALMA Archive"
+        echo "  astroquery splatalogue # Query Splatalogue for spectral lines"
         return 0
     end
     switch $argv[1]
@@ -22,43 +26,53 @@ function astroquery -d "Interact with astroquery from fish shell"
             astroquery-ned $argv[2..-1]
         case "jplhorizons"
             astroquery-jplhorizons $argv[2..-1]
+        case "exoplanet"
+            astroquery-exoplanet $argv[2..-1]
+        case "mast"
+            astroquery-mast $argv[2..-1]
+        case "alma"
+            astroquery-alma $argv[2..-1]
+        case "splatalogue"
+            astroquery-splatalogue $argv[2..-1]
         case "*"
             echo "Unknown astroquery command: $argv[1]"
             echo "Run 'astroquery' without arguments to see available commands"
     end
 end
+
 function astroquery-simbad -d "Query SIMBAD astronomical database"
     if test (count $argv) -eq 0
         echo "Usage: astroquery-simbad [object_name]"
         echo "Example: astroquery-simbad 'M31'"
         return 1
     end
-    
+
     python -c "
 from astroquery.simbad import Simbad
 import sys
 try:
     result = Simbad.query_object('$argv[1]')
     if result is None:
-        print(f'No results found for \"{argv[1]}\"')
+        print(f'No results found for \"$argv[1]\"')
     else:
         print(result)
 except Exception as e:
     print(f'Error querying SIMBAD: {e}')
 "
 end
+
 function astroquery-vizier -d "Query VizieR astronomical catalogs"
     if test (count $argv) -lt 2
         echo "Usage: astroquery-vizier [catalog_id] [object_name] (radius_arcmin)"
         echo "Example: astroquery-vizier 'II/246' 'M31' 10"
         return 1
     end
-    
-    set radius 5  
+
+    set radius 5
     if test (count $argv) -ge 3
         set radius $argv[3]
     end
-    
+
     python -c "
 from astroquery.vizier import Vizier
 import astropy.units as u
@@ -67,7 +81,7 @@ try:
     v = Vizier(columns=['*', '+_r'])
     result = v.query_object('$argv[2]', catalog='$argv[1]', radius=$radius * u.arcmin)
     if not result:
-        print(f'No results found for \"{argv[2]}\" in catalog \"{argv[1]}\"')
+        print(f'No results found for \"$argv[2]\" in catalog \"$argv[1]\"')
     else:
         for table_name in result.keys():
             print(f'\\nTable: {table_name}')
@@ -76,18 +90,19 @@ except Exception as e:
     print(f'Error querying VizieR: {e}')
 "
 end
+
 function astroquery-gaia -d "Query Gaia database"
     if test (count $argv) -lt 1
         echo "Usage: astroquery-gaia [object_name] (radius_arcsec)"
         echo "Example: astroquery-gaia 'Sirius' 30"
         return 1
     end
-    
-    set radius 10  
+
+    set radius 10
     if test (count $argv) -ge 2
         set radius $argv[2]
     end
-    
+
     python -c "
 from astroquery.gaia import Gaia
 from astroquery.simbad import Simbad
@@ -97,20 +112,20 @@ import sys
 try:
     result = Simbad.query_object('$argv[1]')
     if result is None:
-        print(f'Object \"{argv[1]}\" not found in SIMBAD')
+        print(f'Object \"$argv[1]\" not found in SIMBAD')
         sys.exit(1)
-    
+
     ra = result['RA'][0]
     dec = result['DEC'][0]
-    
+
     c = coord.SkyCoord(ra + ' ' + dec, unit=(u.hourangle, u.deg))
-    
+
     r = $radius * u.arcsec
     j = Gaia.cone_search_async(c, r)
     result = j.get_results()
-    
+
     if len(result) == 0:
-        print(f'No Gaia results found for \"{argv[1]}\" within {r}')
+        print(f'No Gaia results found for \"$argv[1]\" within {r}')
     else:
         print(f'Found {len(result)} sources in Gaia DR3:')
         cols = ['source_id', 'ra', 'dec', 'parallax', 'pmra', 'pmdec', 'phot_g_mean_mag', 'bp_rp']
@@ -119,6 +134,7 @@ except Exception as e:
     print(f'Error querying Gaia: {e}')
 "
 end
+
 function astroquery-skyview -d "Get images from SkyView"
     if test (count $argv) -lt 1
         echo "Usage: astroquery-skyview [object_name] (survey) (output_file)"
@@ -126,17 +142,17 @@ function astroquery-skyview -d "Get images from SkyView"
         echo "Available surveys: DSS, DSS2, 2MASS, WISE, SDSS, etc."
         return 1
     end
-    
-    set survey "DSS"  
+
+    set survey "DSS"
     if test (count $argv) -ge 2
         set survey $argv[2]
     end
-    
-    set output_file "$argv[1]_$survey.fits"  
+
+    set output_file "$argv[1]_$survey.fits"
     if test (count $argv) -ge 3
         set output_file $argv[3]
     end
-    
+
     python -c "
 from astroquery.skyview import SkyView
 from astropy.io import fits
@@ -146,30 +162,31 @@ try:
     object_name = '$argv[1]'
     survey_name = '$survey'
     output_file = '$output_file'
-    
+
     print(f'Fetching {survey_name} image for {object_name}...')
     images = SkyView.get_images(position=object_name, survey=[survey_name])
-    
+
     if not images or len(images) == 0 or images[0] is None:
         print(f'No images found for \"{object_name}\" in survey \"{survey_name}\"')
         sys.exit(1)
-    
+
     fits.writeto(output_file, images[0][0].data, images[0][0].header, overwrite=True)
     print(f'Image saved to {output_file}')
-    
+
     print(f'Image size: {images[0][0].data.shape}')
     print(f'To display this image, you can use DS9 or a Python script with matplotlib')
 except Exception as e:
     print(f'Error getting image from SkyView: {e}')
 "
 end
+
 function astroquery-ned -d "Query NASA/IPAC Extragalactic Database"
     if test (count $argv) -eq 0
         echo "Usage: astroquery-ned [object_name]"
         echo "Example: astroquery-ned 'NGC 1275'"
         return 1
     end
-    
+
     python -c "
 from astroquery.ipac.ned import Ned
 import sys
@@ -180,55 +197,171 @@ try:
         print(f'No results found for \"{object_name}\" in NED')
     else:
         print(result)
-        
-    # Get basic parameters
+
     print('\\nBasic data:')
     try:
         objdata = Ned.get_object_info(object_name)
         print(objdata)
     except Exception as e:
         print(f'Could not retrieve basic data: {e}')
-        
+
 except Exception as e:
     print(f'Error querying NED: {e}')
 "
 end
+
+function __astroquery_jplhorizons_physical -d "Query JPL Horizons for physical parameters of solar system objects"
+    if test (count $argv) -lt 1
+        echo "Usage: astroquery-jplhorizons [object_id] --physical"
+        echo "Example: astroquery-jplhorizons 'Jupiter' --physical"
+        echo "Object IDs: 1=Mercury, 301=Moon, 399=Earth, 499=Mars, 599=Jupiter, etc."
+        return 1
+    end
+
+    set object_id $argv[1]
+
+    python -c "
+from astroquery.jplhorizons import Horizons
+import sys
+from tabulate import tabulate
+import re
+import numpy as np
+try:
+    object_id = '$object_id'
+
+    print(f'Querying JPL Horizons for physical parameters of: {object_id}')
+
+    obj = Horizons(id=object_id, location='@sun', epochs=2451545.0)
+
+    data = obj.ephemerides(quantities='1,9,G')
+
+    target_name = data['targetname'][0] if 'targetname' in data.columns else object_id
+    print(f'\\nPhysical and Orbital parameters for {target_name}:')
+
+    basic_params = ['H', 'G', 'M1', 'M2', 'k1', 'k2', 'pc', 'moid', 'moid_jup']
+    found_params = False
+
+    print('\\nBasic magnitudes/coefficients:')
+    for param in basic_params:
+        if param in data.columns and data[param][0] is not np.ma.masked:
+             print(f'{param}: {data[param][0]}')
+             found_params = True
+    if not found_params: print ('(None found in main table)')
+
+    print('\\nOrbital elements:')
+    orbital_params = ['e', 'incl', 'Omega', 'w', 'Tp_jd', 'n', 'a', 'Q', 'P']
+    found_orbital = False
+    for param in orbital_params:
+         if param in data.columns and data[param][0] is not np.ma.masked:
+             print(f'{param}: {data[param][0]}')
+             found_orbital = True
+    if not found_orbital: print ('(None found in Orbital Elements query)')
+
+    try:
+        obj_raw = Horizons(id=object_id, location='@sun', epochs=obj.epochs)
+        raw_text = obj_raw.ephemerides_async(get_raw_response=True)
+
+        header = raw_text.split('$$SOE')[0]
+
+        print('\\nAdditional physical parameters (from header):')
+
+        patterns = {
+            'Mass': r'Mass(?: x10\^(\d+))?.*?\s*=\s*([\d.+-]+)\s*(?:\\+/-.*?)?\s*(kg|km\^3/s\^2)?',
+            'GM': r'GM.*?\s*=\s*([\d.+-]+)\s*(?:\\+/-.*?)?\s*(km\^3/s\^2)',
+            'Density': r'Density.*?\s*=\s*([\d.+-]+)\s*(?:\\+/-.*?)?\s*(g/cm\^3)?',
+            'Radius': r'(?:Mean )?Radius.*?\s*=\s*([\d.+-]+)\s*(?:\\+/-.*?)?\s*(km)?',
+            'Equat Radius': r'Equat(?:orial)? radius.*?\s*=\s*([\d.+-]+)\s*(?:\\+/-.*?)?\s*(km)?',
+            'Polar Radius': r'Polar radius.*?\s*=\s*([\d.+-]+)\s*(?:\\+/-.*?)?\s*(km)?',
+            'Flattening': r'Flattening.*?=\s*([\d.+-]+)',
+            'Rotation period': r'(?:Sidereal )?rot\. period.*?\s*=\s*([\d.+-]+)\s*(?:d|h|days|hours)',
+            'Obliquity': r'Obliquity.*?=\s*([\d.+-]+)\s*(deg)?',
+            'Geometric Albedo': r'Geometric albedo.*?\s*=\s*([\d.+-]+)',
+            'Bond Albedo': r'Bond albedo.*?\s*=\s*([\d.+-]+)',
+            'V(1,0)': r'V\(1,0\).*?\s*=\s*([\d.+-]+)',
+            'Mag\. slope': r'Mag\. slope.*?\s*=\s*([\d.+-]+)',
+        }
+
+
+        found_physical = False
+        for param, pattern in patterns.items():
+            match = re.search(pattern, header, re.IGNORECASE)
+            if match:
+                groups = match.groups()
+                if len(groups) > 1:
+                    value = groups[1] if len(groups) > 1 else groups[0]
+                    units = groups[2] if len(groups) > 2 and groups[2] else ''
+                    exponent = groups[0] if len(groups) > 0 and groups[0] and param == 'Mass' else None
+                    
+                    output = f'{param}: {value}'
+                    if exponent: output += f' x 10^{exponent}'
+                    if units: output += f' {units.strip()}'
+                    print(output)
+                    found_physical = True
+
+        if not found_physical:
+            print('(No detailed physical parameters found in header parsing)')
+        elif not found_params and not found_orbital:
+            print ('(Primary source of data for this object)')
+
+    except Exception as e:
+        print(f'Could not parse raw response for physical parameters: {e}')
+
+    if not found_params and not found_orbital and not found_physical:
+        print('\\nNo standard physical or orbital parameters found in JPL Horizons data.')
+        print('Tip: Ensure correct object ID. Asteroids/comets might have H/G params only.')
+
+except Exception as e:
+    print(f'Error querying JPL Horizons: {e}')
+    print(f'Tip: If the object ID is a comet or asteroid designation, make sure to use the correct format.')
+    print(f'For comets use e.g. \"C/2020 F3\" and for asteroids use e.g. \"1 Ceres\" or \"(99942) Apophis\"')
+"
+end
+
 function astroquery-jplhorizons -d "Query JPL Horizons for solar system objects"
     if test (count $argv) -lt 1
         echo "Usage: astroquery-jplhorizons [object_id] (start_time) (stop_time) (step) (--physical)"
         echo "Example: astroquery-jplhorizons '301' '2023-01-01' '2023-01-10' '1d'"
-        echo "Example: astroquery-jplhorizons '301' --physical"
+        echo "Example: astroquery-jplhorizons 'Mars' '2024-01-01' '2024-03-01' '7d'"
+        echo "Example: astroquery-jplhorizons 'Jupiter' --physical"
         echo "Object IDs: 1=Mercury, 301=Moon, 399=Earth, 499=Mars, 599=Jupiter, etc."
         echo "            Or use names like 'Mars', 'Ceres', 'C/2020 F3' (comet)"
         echo "Options:"
         echo "  --physical    Retrieve physical parameters instead of ephemeris"
         return 1
     end
-    
-    # Check if we're requesting physical parameters
-    if contains -- "--physical" $argv
-        set -e argv[(contains -i -- "--physical" $argv)]
+
+    set physical_flag_index (contains -i -- "--physical" $argv)
+    if test $status -eq 0
+        set -e argv[$physical_flag_index]
         __astroquery_jplhorizons_physical $argv
         return
     end
-    
+
     set object_id $argv[1]
-    set start_time "2023-01-01"  # Default start time
-    set stop_time "2023-01-10"   # Default end time
-    set step "1d"                # Default step (1 day)
+    set start_time (date +%Y-%m-%d)
     
+    # Use a more portable way to get date one month from now
+    set stop_time (python -c "
+from datetime import datetime, timedelta
+import sys
+today = datetime.now()
+next_month = today + timedelta(days=30)
+print(next_month.strftime('%Y-%m-%d'))
+")
+    set step "1d"
+
     if test (count $argv) -ge 2
         set start_time $argv[2]
     end
-    
+
     if test (count $argv) -ge 3
         set stop_time $argv[3]
     end
-    
+
     if test (count $argv) -ge 4
         set step $argv[4]
     end
-    
+
     python -c "
 from astroquery.jplhorizons import Horizons
 import sys
@@ -240,152 +373,36 @@ try:
     start_time = '$start_time'
     stop_time = '$stop_time'
     step = '$step'
-    
+
     print(f'Querying JPL Horizons for object: {object_id}')
     print(f'Time range: {start_time} to {stop_time}, step: {step}')
-    
-    # Create Horizons object
-    obj = Horizons(id=object_id, location='@sun', 
+
+    obj = Horizons(id=object_id, location='500',
                   epochs={'start': start_time, 'stop': stop_time, 'step': step})
-    
-    # Get ephemeris
-    eph = obj.ephemerides()
-    
+
+    eph = obj.ephemerides(quantities='1,8,19,20,23,24')
+
     if eph is None or len(eph) == 0:
         print(f'No ephemeris data found for \"{object_id}\"')
         sys.exit(1)
-    
-    # Display basic information
-    print(f'\\nFound {len(eph)} positions for {object_id}')
-    
-    # Convert data to Pandas DataFrame and format output
-    df = eph.to_pandas()
-    
-    # Select important columns
-    columns = ['datetime_str', 'solar_presence', 'r', 'delta', 'lighttime', 'RA', 'DEC', 'V']
-    columns = [col for col in columns if col in df.columns]
-    
-    # Format output
-    print('\\nEphemeris data:')
-    print(tabulate(df[columns].head(10), headers='keys', tablefmt='psql', showindex=False))
-    
-    if len(df) > 10:
-        print(f'... and {len(df) - 10} more rows')
-    
-    # Get object details
+
+    print(f'\\nFound {len(eph)} ephemeris points for {object_id}')
     try:
-        obj_data = Horizons(id=object_id, location='@sun').ephemerides(quantities=1)
-        print('\\nObject information:')
-        for key in ['targetname', 'H', 'G']:
-            if key in obj_data.columns:
-                print(f'{key}: {obj_data[key][0]}')
-    except Exception as e:
-        print(f'Could not retrieve object details: {e}')
-        
-except Exception as e:
-    print(f'Error querying JPL Horizons: {e}')
-    print(f'Tip: If the object ID is a comet or asteroid designation, make sure to use the correct format.')
-    print(f'For comets use e.g. \"C/2020 F3\" and for asteroids use e.g. \"1 Ceres\" or \"(99942) Apophis\"')
-"
-end
-function __astroquery_jplhorizons_physical -d "Query JPL Horizons for physical parameters of solar system objects"
-    if test (count $argv) -lt 1
-        echo "Usage: astroquery-jplhorizons [object_id] --physical"
-        echo "Example: astroquery-jplhorizons 'Jupiter' --physical"
-        echo "Object IDs: 1=Mercury, 301=Moon, 399=Earth, 499=Mars, 599=Jupiter, etc."
-        return 1
-    end
-    
-    set object_id $argv[1]
-    
-    python -c "
-from astroquery.jplhorizons import Horizons
-import sys
-from tabulate import tabulate
-import re
-try:
-    object_id = '$object_id'
-    
-    print(f'Querying JPL Horizons for physical parameters of: {object_id}')
-    
-    # Create Horizons object with the 'id' parameter
-    obj = Horizons(id=object_id, location='@sun', epochs=2459000.5)
-    
-    # Get ephemeris data with quantities='G' for physical data
-    data = obj.ephemerides(quantities='G')
-    
-    # Extract the target name
-    target_name = data['targetname'][0] if 'targetname' in data.columns else object_id
-    print(f'\\nPhysical parameters for {target_name}:')
-    
-    # Display basic information from ephemeris
-    basic_params = ['H', 'G', 'M1', 'M2', 'k1', 'k2', 'phase_coeff']
-    found_params = False
-    
-    for param in basic_params:
-        if param in data.columns:
-            print(f'{param}: {data[param][0]}')
-            found_params = True
-    
-    # Get physical parameters from elements API
+        obj_name_jpl = eph['targetname'][0] if 'targetname' in eph.columns else object_id
+        print(f'Target Name (JPL): {obj_name_jpl}')
+    except:
+        pass
+
+    cols_to_print = ['datetime_str', 'RA', 'DEC', 'RA_rate', 'DEC_rate', 'delta', 'delta_rate', 'V', 'true_anom', 'mean_anom']
+    available_clos = [col for col in cols_to_print if col in eph.columns]
+
+    print('\\nEphemeris data (Geocentric):')
     try:
-        # Query elements API which contains physical parameters
-        elem = obj.elements()
-        
-        if elem is not None:
-            print('\\nOrbital elements:')
-            
-            # Important orbital elements
-            orbital_params = ['targetname', 'e', 'incl', 'a', 'Q', 'P']
-            for param in orbital_params:
-                if param in elem.columns:
-                    print(f'{param}: {elem[param][0]}')
-    except Exception as e:
-        print(f'Could not retrieve orbital elements: {e}')
-    
-    # Try to get physical data from the raw response (for larger bodies)
-    try:
-        # Get raw response for additional physical data
-        raw_response = obj.ephemerides_async(quantities='G')
-        raw_text = raw_response.text
-        
-        # Look for physical data section
-        if '$$SOE' in raw_text and '$$EOE' in raw_text:
-            # Extract the header section
-            header = raw_text.split('$$SOE')[0]
-            
-            # Look for physical parameters
-            print('\\nAdditional physical parameters:')
-            
-            # Define patterns for common physical parameters
-            patterns = {
-                'Mass': r'Mass.*?=\\s*([\\d.]+\\s*[\\w\\^\\d.]+)',
-                'Radius': r'Radius.*?=\\s*([\\d.]+\\s*[\\w\\^\\d.]+)',
-                'Density': r'Density.*?=\\s*([\\d.]+\\s*[\\w\\^\\d.]+)',
-                'Geometric Albedo': r'Geometric albedo.*?=\\s*([\\d.]+)',
-                'GM': r'GM\\s*=\\s*([\\d.]+\\s*[\\w\\^\\d.]+)',
-                'Rotation period': r'rot\\. period.*?=\\s*([\\d.]+\\s*[\\w\\^\\d.]+)',
-                'Equatorial radius': r'Equat.*?radius.*?=\\s*([\\d.]+\\s*[\\w\\^\\d.]+)',
-                'Polar radius': r'Polar.*?radius.*?=\\s*([\\d.]+\\s*[\\w\\^\\d.]+)'
-            }
-            
-            found_physical = False
-            for param, pattern in patterns.items():
-                match = re.search(pattern, header, re.IGNORECASE)
-                if match:
-                    print(f'{param}: {match.group(1)}')
-                    found_physical = True
-            
-            if not found_physical:
-                print('No detailed physical parameters found in JPL Horizons data')
-        
-    except Exception as e:
-        print(f'Could not parse raw response for physical parameters: {e}')
-    
-    if not found_params:
-        print('No physical parameters found in JPL Horizons data')
-        print('Some objects may not have physical data available in the JPL database')
-    
+        print(tabulate(eph[available_clos].pformat_all(max_lines=-1)[1:], headers=available_clos, tablefmt='psql', showindex=False))
+    except Exception as te:
+         print(f'(Tabulate display error: {te}). Raw data:')
+         eph[available_clos].pprint_all()
+
 except Exception as e:
     print(f'Error querying JPL Horizons: {e}')
     print(f'Tip: If the object ID is a comet or asteroid designation, make sure to use the correct format.')
@@ -393,6 +410,481 @@ except Exception as e:
 "
 end
 
+function astroquery-exoplanet -d "Query NASA Exoplanet Archive"
+    if test (count $argv) -lt 1
+        echo "Usage: astroquery-exoplanet [query_type] [arguments...]"
+        echo "Query Types:"
+        echo "  object [planet_name]             # Query data for a specific confirmed planet"
+        echo "  criteria [table] [conditions...] # Query based on criteria (e.g., 'pl_orbper > 365')"
+        echo "Examples:"
+        echo "  astroquery-exoplanet object 'Kepler-186 f'"
+        echo "  astroquery-exoplanet criteria planets \"hostname = \'Kepler-186\'\""
+        echo "  astroquery-exoplanet criteria pscomppars \"pl_orbper > 300 and pl_rade < 2\""
+        echo "Available tables for criteria: planets, compositepars (pscomppars), keplerstellar, k2targets, etc."
+        return 1
+    end
+
+    set query_type $argv[1]
+    set query_args $argv[2..-1]
+
+    python -c "
+from astroquery.nasa_exoplanet_archive import NasaExoplanetArchive
+import sys
+import pandas as pd
+from tabulate import tabulate
+
+query_type = '$query_type'
+query_args = '$query_args'.split()
+
+pd.set_option('display.max_rows', None)
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 200)
+
+try:
+    if query_type == 'object' and len(query_args) >= 1:
+        planet_name = ' '.join(query_args)
+        print(f'Querying NASA Exoplanet Archive for confirmed planet: {planet_name}')
+        result = NasaExoplanetArchive.query_planet(planet_name, all_columns=True)
+        if result is None or len(result) == 0:
+             print(f'No data found for planet \"{planet_name}\"')
+        else:
+             df = result.to_pandas().T
+             print(tabulate(df, headers=['Parameter', 'Value'], tablefmt='psql'))
+
+    elif query_type == 'criteria' and len(query_args) >= 2:
+        table = query_args[0]
+        where_clause = ' '.join(query_args[1:])
+        print(f'Querying NASA Exoplanet Archive table \'{table}\' with criteria: {where_clause}')
+        result = NasaExoplanetArchive.query_criteria(table=table, where=where_clause)
+        if result is None or len(result) == 0:
+             print(f'No results found for the given criteria in table \"{table}\"')
+        else:
+            df = result.to_pandas()
+            print(f'Found {len(df)} results:')
+            cols = df.columns[:15]
+            if table == 'planets' or table == 'pscomppars':
+                 cols = ['pl_name', 'hostname', 'pl_orbper', 'pl_rade', 'pl_masse', 'discoverymethod', 'sy_dist']
+                 cols = [c for c in cols if c in df.columns]
+            
+            print(tabulate(df[cols].head(20), headers='keys', tablefmt='psql', showindex=False))
+            if len(df) > 20:
+                 print(f'... and {len(df) - 20} more rows. Found {len(df.columns)} columns total.')
+
+    else:
+        print(f'Invalid query type \'{query_type}\' or insufficient arguments.')
+        print('Run \'astroquery exoplanet\' for usage.')
+        sys.exit(1)
+
+except Exception as e:
+    print(f'Error querying NASA Exoplanet Archive: {e}')
+    print('Check table names and query conditions syntax.')
+
+"
+end
+
+function astroquery-mast -d "Query MAST Archive (Hubble, TESS, JWST, etc.)"
+    if test (count $argv) -lt 2
+        echo "Usage: astroquery-mast [query_type] [arguments...]"
+        echo "Query Types:"
+        echo "  cone [object_name/coords] [radius_deg] (mission) # Cone search for observations"
+        echo "  criteria [mission] [conditions...]              # Advanced search by criteria"
+        echo "  missions                                        # List available missions"
+        echo "Examples:"
+        echo "  astroquery-mast cone 'M31' 0.2 'HST,JWST'"
+        echo "  astroquery-mast cone '10.6847,41.269' 0.1 TESS"
+        echo "  astroquery-mast criteria HST \"filters='F555W' and t_exptime>1000\""
+        echo "  astroquery-mast missions"
+        return 1
+    end
+
+    set query_type $argv[1]
+    set query_args $argv[2..-1]
+
+    python -c "
+from astroquery.mast import Observations
+import sys
+from tabulate import tabulate
+import pandas as pd
+
+query_type = '$query_type'
+query_args_raw = '$query_args'
+query_args_list = []
+
+# Parse arguments more carefully
+import shlex
+try:
+    query_args_list = shlex.split(query_args_raw)
+except:
+    query_args_list = query_args_raw.split()
+
+# Handle cone search arguments
+if query_type == 'cone' and len(query_args_list) >= 2:
+    # Check if second argument is a number (radius)
+    radius_idx = 1
+    for i in range(1, min(len(query_args_list), 4)):
+        try:
+            float(query_args_list[i])
+            radius_idx = i
+            break
+        except ValueError:
+            continue
+    
+    if radius_idx > 1:
+        object_name = ' '.join(query_args_list[0:radius_idx])
+        radius_deg = query_args_list[radius_idx]
+        mission = ','.join(query_args_list[radius_idx+1:]) if len(query_args_list) > radius_idx + 1 else None
+    else:
+        object_name = query_args_list[0]
+        radius_deg = query_args_list[1]
+        mission = ','.join(query_args_list[2:]) if len(query_args_list) > 2 else None
+elif query_type == 'criteria' and len(query_args_list) >= 2:
+    mission_crit = query_args_list[0]
+    criteria = ' '.join(query_args_list[1:])
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 200)
+
+try:
+    if query_type == 'missions':
+        print(\"Querying available MAST missions...\")
+        missions = Observations.list_missions()
+        print (\"\\n\".join(missions))
+
+    elif query_type == 'cone' and len(query_args_list) >= 2:
+        print(f'Performing cone search around: {object_name}, radius: {radius_deg} deg')
+        if mission:
+             print(f'Filtering by mission(s): {mission}')
+             obs_table = Observations.query_object(object_name, radius=f'{radius_deg} deg')
+             missions_list = [m.strip().upper() for m in mission.split(',')]
+             obs_table = obs_table[[row['obs_collection'] in missions_list for row in obs_table]]
+        else:
+             obs_table = Observations.query_object(object_name, radius=f'{radius_deg} deg')
+
+        if obs_table is None or len(obs_table) == 0:
+            print(f'No observations found.')
+        else:
+            df = obs_table.to_pandas()
+            print(f'Found {len(df)} observations.')
+            cols = ['obsid', 'instrument_name', 'filters', 't_exptime', 's_ra', 's_dec', 'obs_collection', 'proposal_id']
+            cols = [c for c in cols if c in df.columns]
+            print(tabulate(df[cols].head(20), headers='keys', tablefmt='psql', showindex=False))
+            if len(df) > 20:
+                 print(f'... and {len(df) - 20} more rows. Found {len(df.columns)} columns total.')
+            print(\"\\nUse 'astroquery-mast criteria' with obsid for more details or download.\")
+
+
+    elif query_type == 'criteria' and len(query_args_list) >= 2:
+        print(f'Performing criteria search for mission: {mission_crit}, criteria: {criteria}')
+        search_params = {'obs_collection': mission_crit.upper()}
+        try:
+             crit_parts = criteria.split(' and ')
+             for part in crit_parts:
+                  for op in ['>=', '<=', '>', '<', '=']:
+                       if op in part:
+                           key, val = part.split(op, 1)
+                           search_params[key.strip()] = f'{op}{val.strip()}'
+                           break
+                  else:
+                      key, val = part.split('=', 1)
+                      search_params[key.strip()] = val.strip()
+
+        except Exception as pe:
+             print(f'Could not parse criteria \'{criteria}\'. Use simple \'key=value\' or \'key>value\' pairs joined by \' and \', or quote the full criteria string if complex.: {pe}')
+             sys.exit(1)
+
+        obs_table = Observations.query_criteria(**search_params)
+
+        if obs_table is None or len(obs_table) == 0:
+            print(f'No observations found matching criteria.')
+        else:
+            df = obs_table.to_pandas()
+            print(f'Found {len(df)} observations.')
+            cols = ['obsid', 'instrument_name', 'filters', 'target_name', 't_exptime', 's_ra', 's_dec', 'proposal_id']
+            cols = [c for c in cols if c in df.columns]
+            print(tabulate(df[cols].head(20), headers='keys', tablefmt='psql', showindex=False))
+            if len(df) > 20:
+                 print(f'... and {len(df) - 20} more rows. Found {len(df.columns)} columns total.')
+
+    else:
+        print(f'Invalid query type \'{query_type}\' or insufficient/unparseable arguments.')
+        print('Run \'astroquery mast\' for usage.')
+        sys.exit(1)
+
+except Exception as e:
+    print(f'Error querying MAST: {e}')
+
+"
+end
+
+function astroquery-alma -d "Query ALMA Archive"
+    if test (count $argv) -lt 1
+        echo "Usage: astroquery-alma [query_type] [arguments...]"
+        echo "Query Types:"
+        echo "  object [object_name] (radius_arcsec) # Search public data by object name"
+        echo "  project [project_code]              # Search data by project code (e.g., '2019.1.00123.S')"
+        echo "Examples:"
+        echo "  astroquery-alma object 'TW Hya' 60"
+        echo "  astroquery-alma project '2017.1.00886.S'"
+        return 1
+    end
+
+    set query_type $argv[1]
+    set query_args $argv[2..-1]
+
+    python -c "
+from astroquery.alma import Alma
+import sys
+import astropy.units as u
+from tabulate import tabulate
+import pandas as pd
+import numpy as np
+
+query_type = '$query_type'
+query_args_list = '$query_args'.split()
+
+alma = Alma()
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 250)
+
+try:
+    if query_type == 'object' and len(query_args_list) >= 1:
+        object_name = ' '.join(query_args_list[0:1])
+        radius_arcsec = 30  # Default radius
+        if len(query_args_list) >= 2:
+            try:
+                radius_arcsec = float(query_args_list[1])
+            except ValueError:
+                print(f'Warning: Could not parse radius \"{query_args_list[1]}\", using default 30 arcsec')
+        
+        print(f'Querying ALMA Archive for object: {object_name}, radius: {radius_arcsec} arcsec')
+        
+        result = alma.query_object(object_name, radius=radius_arcsec * u.arcsec, public=True)
+        
+        if result is None or len(result) == 0:
+            print(f'No public ALMA data found for \"{object_name}\"')
+        else:
+            df = result.to_pandas()
+            print(f'Found {len(df)} public datasets.')
+            
+            # Replace masked values with NaN for better display
+            for col in df.columns:
+                if hasattr(df[col], 'mask') and np.any(df[col].mask):
+                    df[col] = df[col].filled(np.nan)
+            
+            cols = ['project_code', 'source_name', 'band_list', 'frequency_support', 'integration', 'release_date', 'spatial_resolution', 'proposal_title']
+            cols = [c for c in cols if c in df.columns]
+            
+            print(tabulate(df[cols].head(20), headers='keys', tablefmt='psql', showindex=False))
+            if len(df) > 20:
+                print(f'... and {len(df) - 20} more rows')
+    
+    elif query_type == 'project' and len(query_args_list) >= 1:
+        project_code = query_args_list[0]
+        print(f'Querying ALMA Archive for project code: {project_code}')
+        
+        result = alma.query(payload={'project_code': project_code})
+        
+        if result is None or len(result) == 0:
+            print(f'No data found for project code \"{project_code}\"')
+        else:
+            df = result.to_pandas()
+            print(f'Found {len(df)} datasets for project {project_code}.')
+            
+            # Replace masked values with NaN for better display
+            for col in df.columns:
+                if hasattr(df[col], 'mask') and np.any(df[col].mask):
+                    df[col] = df[col].filled(np.nan)
+            
+            cols = ['source_name', 'band_list', 'frequency_support', 'integration', 'release_date', 'spatial_resolution', 'proposal_title']
+            cols = [c for c in cols if c in df.columns]
+            
+            print(tabulate(df[cols].head(20), headers='keys', tablefmt='psql', showindex=False))
+            if len(df) > 20:
+                print(f'... and {len(df) - 20} more rows')
+    
+    else:
+        print(f'Invalid query type \"{query_type}\" or insufficient arguments.')
+        print('Run \'astroquery alma\' for usage.')
+        sys.exit(1)
+
+except Exception as e:
+    print(f'Error querying ALMA Archive: {e}')
+"
+end
+
+function astroquery-splatalogue -d "Query Splatalogue for spectral lines"
+    if test (count $argv) -lt 2
+        echo "Usage: astroquery-splatalogue [query_type] [arguments...]"
+        echo "Query Types:"
+        echo "  range [min_freq] [max_freq] (chemical_name) (energy_max) # Search by frequency range"
+        echo "  chemical [chemical_name] (min_freq) (max_freq) (energy_max) # Search by chemical"
+        echo "Units: Frequency in GHz, Energy in K"
+        echo "Examples:"
+        echo "  astroquery-splatalogue range 85 116 'CO' 100"
+        echo "  astroquery-splatalogue chemical 'CH3OH' 80 115 50"
+        return 1
+    end
+
+    set query_type $argv[1]
+    set query_args $argv[2..-1]
+
+    python -c "
+from astroquery.splatalogue import Splatalogue, utils
+import sys
+from tabulate import tabulate
+import pandas as pd
+import numpy as np
+import re
+
+query_type = '$query_type'
+query_args = '$query_args'.split()
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 250)
+
+# Helper function to sanitize chemical formula
+def sanitize_chemical(formula):
+    # Remove problematic characters but preserve chemical meaning
+    return re.sub(r'[^A-Za-z0-9\+\-\(\)]', '', formula)
+
+try:
+    if query_type == 'range' and len(query_args) >= 2:
+        min_freq = float(query_args[0])
+        max_freq = float(query_args[1])
+        chemical_name = None
+        energy_max = 1000  # Default max energy level in K
+        
+        if len(query_args) >= 3:
+            chemical_name = sanitize_chemical(query_args[2])
+        
+        if len(query_args) >= 4:
+            try:
+                energy_max = float(query_args[3])
+            except ValueError:
+                print(f'Warning: Could not parse energy_max \"{query_args[3]}\", using default 1000 K')
+        
+        print(f'Querying Splatalogue for frequency range: {min_freq}-{max_freq} GHz')
+        if chemical_name:
+            print(f'Filtering by chemical: {chemical_name}')
+        print(f'Maximum energy level: {energy_max} K')
+        
+        Splatalogue.QUERY_URL = 'https://splatalogue.online/c_export.php'
+        
+        if chemical_name:
+            result = Splatalogue.query_lines(min_freq * 1e9, max_freq * 1e9, 
+                                            chemical_name=chemical_name,
+                                            energy_max=energy_max,
+                                            energy_type='eu_k',
+                                            line_lists=['CDMS', 'JPL', 'SLAIM'],
+                                            show_upper_degeneracy=True,
+                                            show_molecule_tag=True,
+                                            show_quantum_numbers=True)
+        else:
+            result = Splatalogue.query_lines(min_freq * 1e9, max_freq * 1e9,
+                                            energy_max=energy_max,
+                                            energy_type='eu_k',
+                                            line_lists=['CDMS', 'JPL', 'SLAIM'],
+                                            show_upper_degeneracy=True,
+                                            show_molecule_tag=True,
+                                            show_quantum_numbers=True)
+        
+        if result is None or len(result) == 0:
+            print(f'No spectral lines found in the specified frequency range.')
+        else:
+            # Convert to pandas for easier handling
+            df = result.to_pandas()
+            
+            # Sort by frequency
+            df = df.sort_values('Freq', ascending=True)
+            
+            print(f'Found {len(df)} spectral lines.')
+            
+            # Select columns to display
+            cols = ['Species', 'Chemical Name', 'Freq', 'Meas Freq', 'Freq Err', 'Quantum Numbers', 'CDMS/JPL Intensity', 'Eu_K']
+            cols = [c for c in cols if c in df.columns]
+            
+            # Format frequency columns to show in GHz
+            for col in ['Freq', 'Meas Freq', 'Freq Err']:
+                if col in df.columns:
+                    df[col] = df[col] / 1e9
+            
+            print(tabulate(df[cols].head(30), headers='keys', tablefmt='psql', showindex=False))
+            if len(df) > 30:
+                print(f'... and {len(df) - 30} more lines')
+    
+    elif query_type == 'chemical' and len(query_args) >= 1:
+        chemical_name = sanitize_chemical(query_args[0])
+        min_freq = 0  # Default min frequency in GHz
+        max_freq = 1000  # Default max frequency in GHz
+        energy_max = 1000  # Default max energy level in K
+        
+        if len(query_args) >= 2:
+            try:
+                min_freq = float(query_args[1])
+            except ValueError:
+                print(f'Warning: Could not parse min_freq \"{query_args[1]}\", using default 0 GHz')
+        
+        if len(query_args) >= 3:
+            try:
+                max_freq = float(query_args[2])
+            except ValueError:
+                print(f'Warning: Could not parse max_freq \"{query_args[2]}\", using default 1000 GHz')
+        
+        if len(query_args) >= 4:
+            try:
+                energy_max = float(query_args[3])
+            except ValueError:
+                print(f'Warning: Could not parse energy_max \"{query_args[3]}\", using default 1000 K')
+        
+        print(f'Querying Splatalogue for chemical: {chemical_name}')
+        print(f'Frequency range: {min_freq}-{max_freq} GHz')
+        print(f'Maximum energy level: {energy_max} K')
+        
+        Splatalogue.QUERY_URL = 'https://splatalogue.online/c_export.php'
+        
+        result = Splatalogue.query_lines(min_freq * 1e9, max_freq * 1e9, 
+                                        chemical_name=chemical_name,
+                                        energy_max=energy_max,
+                                        energy_type='eu_k',
+                                        line_lists=['CDMS', 'JPL', 'SLAIM'],
+                                        show_upper_degeneracy=True,
+                                        show_molecule_tag=True,
+                                        show_quantum_numbers=True)
+        
+        if result is None or len(result) == 0:
+            print(f'No spectral lines found for chemical \"{chemical_name}\" in the specified frequency range.')
+        else:
+            # Convert to pandas for easier handling
+            df = result.to_pandas()
+            
+            # Sort by frequency
+            df = df.sort_values('Freq', ascending=True)
+            
+            print(f'Found {len(df)} spectral lines for {chemical_name}.')
+            
+            # Select columns to display
+            cols = ['Species', 'Chemical Name', 'Freq', 'Meas Freq', 'Freq Err', 'Quantum Numbers', 'CDMS/JPL Intensity', 'Eu_K']
+            cols = [c for c in cols if c in df.columns]
+            
+            # Format frequency columns to show in GHz
+            for col in ['Freq', 'Meas Freq', 'Freq Err']:
+                if col in df.columns:
+                    df[col] = df[col] / 1e9
+            
+            print(tabulate(df[cols].head(30), headers='keys', tablefmt='psql', showindex=False))
+            if len(df) > 30:
+                print(f'... and {len(df) - 30} more lines')
+    
+    else:
+        print(f'Invalid query type \"{query_type}\" or insufficient arguments.')
+        print('Run \'astroquery splatalogue\' for usage.')
+        sys.exit(1)
+
+except Exception as e:
+    print(f'Error querying Splatalogue: {e}')
+"
+end
 
 complete -c astroquery -e
 
@@ -420,6 +912,10 @@ complete -c astroquery -f -n "__astroquery_needs_command" -a "gaia" -d "Query Ga
 complete -c astroquery -f -n "__astroquery_needs_command" -a "skyview" -d "Get images from SkyView"
 complete -c astroquery -f -n "__astroquery_needs_command" -a "ned" -d "Query NED database"
 complete -c astroquery -f -n "__astroquery_needs_command" -a "jplhorizons" -d "Query JPL Horizons for solar system objects"
+complete -c astroquery -f -n "__astroquery_needs_command" -a "exoplanet" -d "Query exoplanet databases"
+complete -c astroquery -f -n "__astroquery_needs_command" -a "mast" -d "Query MAST archive"
+complete -c astroquery -f -n "__astroquery_needs_command" -a "alma" -d "Query ALMA archive"
+complete -c astroquery -f -n "__astroquery_needs_command" -a "splatalogue" -d "Query molecular spectroscopy database"
 
 complete -c astroquery -f -n "__astroquery_completing_subcommand simbad" -a "M31" -d "Andromeda Galaxy"
 complete -c astroquery -f -n "__astroquery_completing_subcommand simbad" -a "M42" -d "Orion Nebula"
@@ -483,7 +979,6 @@ complete -c astroquery -f -n "__astroquery_completing_subcommand ned" -a "Cygnus
 
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "--physical" -d "Get physical parameters instead of ephemeris"
 
-
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "1" -d "Mercury"
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "2" -d "Venus"
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "301" -d "Moon"
@@ -499,20 +994,40 @@ complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "Vesta" -d "Large asteroid"
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons" -a "C/2020 F3" -d "Comet NEOWISE"
 
-
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 4; and not __fish_seen_argument --physical" -a (date +%Y-%m-%d) -d "Today"
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 4; and not __fish_seen_argument --physical" -a "2023-01-01" -d "New Year 2023"
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 4; and not __fish_seen_argument --physical" -a "2023-07-01" -d "Mid-year 2023"
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 4; and not __fish_seen_argument --physical" -a "2024-01-01" -d "New Year 2024"
-
 
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 5; and not __fish_seen_argument --physical" -a (date -d "+10 days" +%Y-%m-%d) -d "10 days from today"
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 5; and not __fish_seen_argument --physical" -a (date -d "+30 days" +%Y-%m-%d) -d "30 days from today"
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 5; and not __fish_seen_argument --physical" -a "2023-12-31" -d "End of 2023"
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 5; and not __fish_seen_argument --physical" -a "2024-12-31" -d "End of 2024"
 
-
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 6; and not __fish_seen_argument --physical" -a "1d" -d "1 day (default)"
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 6; and not __fish_seen_argument --physical" -a "1h" -d "1 hour"
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 6; and not __fish_seen_argument --physical" -a "10m" -d "10 minutes"
 complete -c astroquery -f -n "__astroquery_completing_subcommand jplhorizons; and __fish_is_nth_token 6; and not __fish_seen_argument --physical" -a "7d" -d "1 week"
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand exoplanet" -a "planet" -d "Query by planet name"
+complete -c astroquery -f -n "__astroquery_completing_subcommand exoplanet" -a "star" -d "Query by host star name"
+complete -c astroquery -f -n "__astroquery_completing_subcommand exoplanet" -a "all" -d "List all confirmed exoplanets"
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand mast" -a "object" -d "Query by object name"
+complete -c astroquery -f -n "__astroquery_completing_subcommand mast" -a "position" -d "Query by sky position"
+complete -c astroquery -f -n "__astroquery_completing_subcommand mast" -a "mission" -d "Query by mission name"
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand mast; and __fish_is_nth_token 3" -a "HST" -d "Hubble Space Telescope"
+complete -c astroquery -f -n "__astroquery_completing_subcommand mast; and __fish_is_nth_token 3" -a "JWST" -d "James Webb Space Telescope"
+complete -c astroquery -f -n "__astroquery_completing_subcommand mast; and __fish_is_nth_token 3" -a "TESS" -d "Transiting Exoplanet Survey Satellite"
+complete -c astroquery -f -n "__astroquery_completing_subcommand mast; and __fish_is_nth_token 3" -a "Kepler" -d "Kepler Space Telescope"
+complete -c astroquery -f -n "__astroquery_completing_subcommand mast; and __fish_is_nth_token 3" -a "K2" -d "K2 Mission"
+complete -c astroquery -f -n "__astroquery_completing_subcommand mast; and __fish_is_nth_token 3" -a "GALEX" -d "Galaxy Evolution Explorer"
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand alma" -a "object" -d "Query by object name"
+complete -c astroquery -f -n "__astroquery_completing_subcommand alma" -a "project" -d "Query by project code"
+
+complete -c astroquery -f -n "__astroquery_completing_subcommand splatalogue" -a "range" -d "Search by frequency range"
+complete -c astroquery -f -n "__astroquery_completing_subcommand splatalogue" -a "chemical" -d "Search by chemical name"
+
+complete -c astroquery -f
