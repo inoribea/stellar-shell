@@ -918,29 +918,35 @@ except Exception as e:
 "
 end
 
-function astroquery -d "Astroquery command-line tool"
-    if test (count $argv) -lt 1
-        echo "Usage: astroquery [subcommand] [options]"
-        echo "Available subcommands: vizier"
-        return 1
-    end
-    
-    switch $argv[1]
-        case vizier
-            astroquery-vizier $argv[2..-1]
-        case '*'
-            echo "Unknown subcommand: $argv[1]"
-            echo "Available subcommands: vizier"
-            return 1
-    end
-end
-
 complete -c astroquery -e
 
 function __astroquery_needs_command
     set -l cmd (commandline -opc)
     if test (count $cmd) -eq 1; and test "$cmd[1]" = "astroquery"
         return 0
+    end
+    return 1
+end
+
+function __astroquery_gaia_needs_radius
+    set -l cmd (commandline -opc)
+    if test (count $cmd) -ge 3; and test "$cmd[1]" = "astroquery"; and test "$cmd[2]" = "gaia"
+        if test (count $cmd) -eq 3; or test (count $cmd) -eq 4 -a (commandline -ct) != ""
+            set -l last_arg $cmd[-1]
+            if not string match -q "M*" -- "$last_arg"; and not string match -q "NGC*" -- "$last_arg"; and not string match -q "*Nebula" -- "$last_arg"; and not string match -q "Sirius" -- "$last_arg"; and not string match -q "Proxima*" -- "$last_arg"; and not string match -q "Pleiades" -- "$last_arg"
+                return 0
+            end
+        end
+    end
+    return 1
+end
+
+function __astroquery_gaia_needs_object
+    set -l cmd (commandline -opc)
+    if test (count $cmd) -ge 2; and test "$cmd[1]" = "astroquery"; and test "$cmd[2]" = "gaia"
+        if test (count $cmd) -eq 2; or test (count $cmd) -eq 3 -a (commandline -ct) != "" -a (not string match -r '^\d+$' -- (commandline -ct))
+            return 0
+        end
     end
     return 1
 end
@@ -1045,17 +1051,17 @@ complete -c astroquery -f -n "__astroquery_vizier_needs_radius" -a "10" -d "10 a
 complete -c astroquery -f -n "__astroquery_vizier_needs_radius" -a "30" -d "30 arcmin"
 complete -c astroquery -f -n "__astroquery_vizier_needs_radius" -a "60" -d "1 degree (60 arcmin)"
 
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "M31" -d "Andromeda Galaxy"
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "M42" -d "Orion Nebula"
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "Sirius" -d "Brightest star in the night sky"
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "Proxima Centauri" -d "Closest star to the Sun"
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "Pleiades" -d "Open star cluster (Seven Sisters)"
+complete -c astroquery -f -n "__astroquery_gaia_needs_object" -a "M31" -d "Andromeda Galaxy"
+complete -c astroquery -f -n "__astroquery_gaia_needs_object" -a "M42" -d "Orion Nebula"
+complete -c astroquery -f -n "__astroquery_gaia_needs_object" -a "Sirius" -d "Brightest star in the night sky"
+complete -c astroquery -f -n "__astroquery_gaia_needs_object" -a "Proxima Centauri" -d "Closest star to the Sun"
+complete -c astroquery -f -n "__astroquery_gaia_needs_object" -a "Pleiades" -d "Open star cluster (Seven Sisters)"
 
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "10" -d "10 arcsec (default)"
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "30" -d "30 arcsec"
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "60" -d "1 arcmin (60 arcsec)"
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "300" -d "5 arcmin (300 arcsec)"
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "3600" -d "1 degree (3600 arcsec)"
+complete -c astroquery -f -n "__astroquery_gaia_needs_radius" -a "10" -d "10 arcsec (default)"
+complete -c astroquery -f -n "__astroquery_gaia_needs_radius" -a "30" -d "30 arcsec"
+complete -c astroquery -f -n "__astroquery_gaia_needs_radius" -a "60" -d "1 arcmin (60 arcsec)"
+complete -c astroquery -f -n "__astroquery_gaia_needs_radius" -a "300" -d "5 arcmin (300 arcsec)"
+complete -c astroquery -f -n "__astroquery_gaia_needs_radius" -a "3600" -d "1 degree (3600 arcsec)"
 
 complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "M31" -d "Andromeda Galaxy"
 complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "M42" -d "Orion Nebula"
@@ -1132,20 +1138,17 @@ complete -c astroquery -f -n "__astroquery_completing_subcommand alma" -a "proje
 complete -c astroquery -f -n "__astroquery_completing_subcommand splatalogue" -a "range" -d "Search by frequency range"
 complete -c astroquery -f -n "__astroquery_completing_subcommand splatalogue" -a "chemical" -d "Search by chemical name"
 
-complete -c astroquery -f
-
-
 complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "M31" -d "Andromeda Galaxy"
 complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "M42" -d "Orion Nebula"
 complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "Sirius" -d "Brightest star in the night sky"
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "Proxima Centauri" -d "Nearest star to the Sun"
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "Pleiades" -d "Open star cluster"
+complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "Proxima Centauri" -d "Closest star to the Sun"
+complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "Pleiades" -d "Open star cluster (Seven Sisters)"
 
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "10" -d "10 arcsec (default)"
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "30" -d "30 arcsec"
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "60" -d "1 arcmin (60 arcsec)"
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "300" -d "5 arcmin (300 arcsec)"
-complete -c astroquery -f -n "__astroquery_completing_subcommand gaia" -a "3600" -d "1 degree (3600 arcsec)"
+complete -c astroquery -f -n "__astroquery_gaia_needs_radius" -a "10" -d "10 arcsec (default)"
+complete -c astroquery -f -n "__astroquery_gaia_needs_radius" -a "30" -d "30 arcsec"
+complete -c astroquery -f -n "__astroquery_gaia_needs_radius" -a "60" -d "1 arcmin (60 arcsec)"
+complete -c astroquery -f -n "__astroquery_gaia_needs_radius" -a "300" -d "5 arcmin (300 arcsec)"
+complete -c astroquery -f -n "__astroquery_gaia_needs_radius" -a "3600" -d "1 degree (3600 arcsec)"
 
 complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "M31" -d "Andromeda Galaxy"
 complete -c astroquery -f -n "__astroquery_completing_subcommand skyview" -a "M42" -d "Orion Nebula"
