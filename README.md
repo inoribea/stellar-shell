@@ -7,6 +7,21 @@ The scripts rely on astroquery. Please install it yourself to ensure normal call
 (astroquery, astropy, tabulate, numpy, pandas, matplotlib)
 
 ## Todo
+ Option
+ 
+ - [x] jplhorizons
+ - [ ] vizier
+ - [ ] simbad
+ - [ ] gaia
+ - [ ] ned
+ - [ ] exoplanet
+ - [ ] mast
+ - [ ] alma
+ - [ ] skyview
+ - [ ] splatalogue
+
+ Platform
+ 
  - [x] fish shell completion
  - [ ] powershell completion
  - [ ] zsh complation
