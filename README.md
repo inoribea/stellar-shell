@@ -11,7 +11,7 @@ The scripts rely on astroquery. Please install it yourself to ensure normal call
  
  - [x] jplhorizons
  - [ ] vizier
- - [ ] simbad
+ - [x] simbad
  - [ ] gaia
  - [ ] ned
  - [ ] exoplanet
@@ -22,6 +22,7 @@ The scripts rely on astroquery. Please install it yourself to ensure normal call
 
  Platform
  
+ - [x] python
  - [x] fish shell completion
  - [ ] powershell completion
  - [ ] zsh complation
